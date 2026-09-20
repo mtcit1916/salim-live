@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>إيزي لايف</title>
+  <meta name="description" content="مشغّل بث مباشر بقائمة قنوات قابلة للتخصيص">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0e1320">
+  <meta name="color-scheme" content="dark">
+
+  <!-- iOS: الإضافة إلى الشاشة الرئيسية -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="إيزي لايف">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --ink:      #0e1320;   /* الخلفية */
+      --surface:  #161c2e;   /* الأسطح */
+      --surface-2:#1d2540;   /* الأسطح عند التمرير */
+      --line:     #263049;   /* الحدود */
+      --text:     #e8ecf5;
+      --muted:    #8f9ab5;
+      --floodlight:#f2b84b;  /* اللون المميّز الوحيد */
+      --danger:   #ff8a7a;
+      --radius:   14px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--ink);
+      color: var(--text);
+      font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.6;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--floodlight); outline-offset: 2px; }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100%;
+      max-width: 1280px;
+      margin-inline: auto;
+    }
+
+    /* ── الشريط العلوي ───────────────────────── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--floodlight); display: grid; place-items: center;
+    }
+    .brand-mark::after {
+      content: ""; width: 0; height: 0;
+      border-block: 6px solid transparent;
+      border-inline-start: 10px solid var(--ink);
+      margin-inline-start: -2px;
+      transform: scaleX(-1);   /* المثلث يشير للجهة الصحيحة في RTL */
+    }
+    .install-btn {
+      display: none;
+      background: transparent; border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 14px; cursor: pointer; font-size: .9rem;
+    }
+    .install-btn:hover { border-color: var(--floodlight); }
+    .install-btn.show { display: inline-block; }
+
+    /* ── التخطيط الرئيسي ─────────────────────── */
+    .layout { display: grid; gap: 16px; padding: 0 16px 24px; align-content: start; }
+    @media (min-width: 900px) {
+      .layout { grid-template-columns: 340px 1fr; align-items: start; gap: 24px; padding: 0 24px 32px; }
+      /* في RTL أول عنصر يظهر يمينًا: القائمة يمين والمشغّل يسار */
+    }
+
+    /* ── المشغّل ─────────────────────────────── */
+    .stage { min-width: 0; }
+    @media (max-width: 899px) {
+      .stage { position: sticky; top: var(--safe-top); z-index: 5; background: var(--ink); padding-bottom: 4px; }
+    }
+    .player {
+      position: relative; aspect-ratio: 16 / 9; width: 100%;
+      background: #000; border-radius: var(--radius); overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    #video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; display: none; }
+    .overlay {
+      position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+      gap: 6px; padding: 16px; color: var(--muted); background: #000;
+    }
+    .overlay strong { color: var(--text); font-weight: 600; font-size: 1.05rem; }
+    .overlay.error strong { color: var(--danger); }
+    .overlay[hidden] { display: none; }
+
+    .now { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 28px; }
+    .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+    .now.playing .live-dot { background: var(--floodlight); box-shadow: 0 0 0 4px rgba(242,184,75,.18); }
+    .now-name { font-weight: 600; }
+    .now-status { color: var(--muted); font-size: .9rem; margin-inline-start: auto; }
+
+    /* ── قائمة القنوات ───────────────────────── */
+    .channels h2 { font-size: 1rem; font-weight: 600; margin: 4px 0 10px; color: var(--muted); }
+    .channel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .channel {
+      width: 100%; display: flex; align-items: center; gap: 12px; text-align: start;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      padding: 10px 12px; cursor: pointer; min-height: 56px;
+      transition: background .15s, border-color .15s;
+    }
+    .channel:hover { background: var(--surface-2); }
+    .channel[aria-current="true"] { border-color: var(--floodlight); background: var(--surface-2); }
+    .channel[disabled] { opacity: .55; cursor: not-allowed; }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 10px; flex: none;
+      display: grid; place-items: center; font-weight: 700;
+      background: var(--ink); border: 1px solid var(--line); color: var(--floodlight);
+    }
+    .channel-name { font-weight: 500; }
+    .channel-note { margin-inline-start: auto; font-size: .8rem; color: var(--muted); }
+    .empty { color: var(--muted); padding: 16px; border: 1px dashed var(--line); border-radius: 12px; }
+
+    .hint { color: var(--muted); font-size: .85rem; margin-top: 16px; }
+    .hint[hidden] { display: none; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>إيزي لايف</span></div>
+      <button class="install-btn" id="installBtn" type="button">تثبيت التطبيق</button>
+    </header>
+
+    <main class="layout">
+      <!-- القنوات (تظهر يمين الشاشة في العرض الواسع) -->
+      <section class="channels" aria-labelledby="channelsTitle" style="order:2">
+        <h2 id="channelsTitle">القنوات</h2>
+        <ul class="channel-list" id="channelList"></ul>
+        <p class="hint" id="iosHint" hidden>لتثبيت التطبيق على الآيفون: افتح الصفحة في Safari، اضغط زر المشاركة، ثم اختر «إضافة إلى الشاشة الرئيسية».</p>
+      </section>
+
+      <!-- المشغّل -->
+      <section class="stage" aria-label="المشغّل" style="order:1">
+        <div class="player" id="player">
+          <video id="video" controls playsinline webkit-playsinline></video>
+          <div class="overlay" id="overlay" role="status">
+            <strong id="overlayTitle">اختر قناة لبدء المشاهدة</strong>
+            <span id="overlayText">القنوات موجودة في القائمة.</span>
+          </div>
+        </div>
+        <div class="now" id="now">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="now-name" id="nowName">لا توجد قناة قيد التشغيل</span>
+          <span class="now-status" id="nowStatus"></span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- مكتبة hls.js من الـ CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+
+  <script>
+    /* ═══════════════════════════════════════════════════════
+       StreamHandler — كما وصلتني، مع بقاء منطقها كما هو
+       ═══════════════════════════════════════════════════════ */
+    class StreamHandler {
+      constructor(videoElementId, containerId) {
+        this.videoElement = document.getElementById(videoElementId);
+        this.containerElement = document.getElementById(containerId);
+        this.hlsInstance = null;
+      }
+
+      loadStream(url) {
+        if (!url) return;
+        this.reset();
+        if (this.isIframeUrl(url)) {
+          this.renderIframe(url);
+          return;
+        }
+        this.renderHls(url);
+      }
+
+      isIframeUrl(url) {
+        return url.includes('player') || url.includes('.php') || url.includes('embed') || !url.includes('.m3u8');
+      }
+
+      renderHls(url) {
+        this.videoElement.style.display = 'block';
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+          this.hlsInstance = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+          this.hlsInstance.loadSource(url);
+          this.hlsInstance.attachMedia(this.videoElement);
+          this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            this.videoElement.play().catch(() => {});
+          });
+        } else if (this.videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+          this.videoElement.src = url;
+          this.videoElement.addEventListener('loadedmetadata', () => {
+            this.videoElement.play().catch(() => {});
+          });
+        }
+      }
+
+      renderIframe(url) {
+        this.videoElement.style.display = 'none';
+        const iframe = document.createElement('iframe');
+        iframe.id = 'active-stream-frame';
+        iframe.src = url;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.position = 'absolute';
+        iframe.style.inset = '0';
+        iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+        iframe.setAttribute('allowfullscreen', 'true');
+        this.containerElement.appendChild(iframe);
+      }
+
+      reset() {
+        if (this.hlsInstance) {
+          this.hlsInstance.destroy();
+          this.hlsInstance = null;
+        }
+        const existingIframe = document.getElementById('active-stream-frame');
+        if (existingIframe) {
+          existingIframe.remove();
+        }
+        this.videoElement.removeAttribute('src');
+        this.videoElement.load();
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       قائمة القنوات — مصفوفة JSON جاهزة للتعبئة لاحقًا
+       لكل قناة: id, name, streamUrl
+       اترك streamUrl فارغًا ليظهر «غير مضبوطة» ولا يمكن تشغيلها.
+       ضع فقط روابط بث تملكها أو مرخّص لك باستخدامها.
+       ═══════════════════════════════════════════════════════ */
+    const CHANNELS = [
+      // قناة اختبار عامة (بث تجريبي رسمي من Mux) للتأكد أن المشغّل يعمل
+      { id: 'test-hls', name: 'قناة تجريبية', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
+      { id: 'ch-2', name: 'القناة 2', streamUrl: '' },
+      { id: 'ch-3', name: 'القناة 3', streamUrl: '' },
+      { id: 'ch-4', name: 'القناة 4', streamUrl: '' }
+    ];
+
+    /* ═══════════════════════════════════════════════════════
+       ربط الواجهة
+       ═══════════════════════════════════════════════════════ */
+    const streamHandler = new StreamHandler('video', 'player');
+    const $ = (id) => document.getElementById(id);
+    const listEl = $('channelList');
+    const overlay = $('overlay');
+    const nowEl = $('now');
+    let activeId = null;
+
+    function setOverlay(title, text, isError = false) {
+      $('overlayTitle').textContent = title;
+      $('overlayText').textContent = text || '';
+      overlay.classList.toggle('error', isError);
+      overlay.hidden = false;
+    }
+
+    function setNow(name, status, playing) {
+      $('nowName').textContent = name;
+      $('nowStatus').textContent = status || '';
+      nowEl.classList.toggle('playing', !!playing);
+    }
+
+    function renderChannels() {
+      listEl.textContent = '';
+      if (!CHANNELS.length) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'لا توجد قنوات بعد. أضف قنواتك إلى مصفوفة CHANNELS في index.html.';
+        listEl.appendChild(li);
+        return;
+      }
+      CHANNELS.forEach((ch) => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'channel';
+        btn.dataset.id = ch.id;
+
+        const avatar = document.createElement('span');
+        avatar.className = 'avatar';
+        avatar.textContent = (ch.name || '?').trim().charAt(0);
+
+        const name = document.createElement('span');
+        name.className = 'channel-name';
+        name.textContent = ch.name;
+
+        btn.append(avatar, name);
+
+        if (!ch.streamUrl) {
+          btn.disabled = true;
+          const note = document.createElement('span');
+          note.className = 'channel-note';
+          note.textContent = 'غير مضبوطة';
+          btn.appendChild(note);
+        } else {
+          btn.addEventListener('click', () => playChannel(ch));
+        }
+        li.appendChild(btn);
+        listEl.appendChild(li);
+      });
+    }
+
+    function markActive(id) {
+      listEl.querySelectorAll('.channel').forEach((b) => {
+        if (b.dataset.id === id) b.setAttribute('aria-current', 'true');
+        else b.removeAttribute('aria-current');
+      });
+    }
+
+    function playChannel(ch) {
+      activeId = ch.id;
+      markActive(ch.id);
+      setNow(ch.name, 'جارٍ التحميل…', false);
+      setOverlay('جارٍ تحميل القناة', ch.name);
+
+      streamHandler.loadStream(ch.streamUrl);
+
+      // متابعة حالة التشغيل (لا تغيّر منطق StreamHandler)
+      const v = $('video');
+      const onPlaying = () => {
+        if (activeId !== ch.id) return;
+        overlay.hidden = true;
+        setNow(ch.name, 'مباشر', true);
+      };
+      v.onplaying = onPlaying;
+
+      if (streamHandler.hlsInstance && typeof Hls !== 'undefined') {
+        streamHandler.hlsInstance.on(Hls.Events.ERROR, (_e, data) => {
+          if (activeId !== ch.id || !data.fatal) return;
+          setOverlay('تعذّر تشغيل القناة', 'تأكد من الرابط أو من اتصالك، ثم حاول مرة أخرى.', true);
+          setNow(ch.name, 'متوقفة', false);
+        });
+      } else if (streamHandler.isIframeUrl(ch.streamUrl)) {
+        // الإطار المضمَّن: لا توجد أحداث تشغيل، نخفي الغطاء عند اكتمال التحميل
+        const frame = document.getElementById('active-stream-frame');
+        if (frame) frame.addEventListener('load', () => {
+          if (activeId !== ch.id) return;
+          overlay.hidden = true;
+          setNow(ch.name, 'مباشر', true);
+        });
+      } else if (typeof Hls === 'undefined' || !Hls.isSupported()) {
+        // Safari/iOS يشغّل HLS مباشرة عبر عنصر video
+        v.onerror = () => {
+          if (activeId !== ch.id) return;
+          setOverlay('تعذّر تشغيل القناة', 'تأكد من الرابط أو من اتصالك، ثم حاول مرة أخرى.', true);
+          setNow(ch.name, 'متوقفة', false);
+        };
+      }
+    }
+
+    renderChannels();
+
+    /* ═══════════════════════════════════════════════════════
+       PWA: Service Worker + زر التثبيت + تلميح iOS
+       ═══════════════════════════════════════════════════════ */
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+
+    let deferredPrompt = null;
+    const installBtn = $('installBtn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.classList.add('show');
+    });
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.classList.remove('show');
+    });
+    window.addEventListener('appinstalled', () => installBtn.classList.remove('show'));
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+    if (isIOS && !isStandalone) $('iosHint').hidden = false;
+  </script>
+</body>
+</html>
