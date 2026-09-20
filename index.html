@@ -73,7 +73,7 @@
       border-block: 6px solid transparent;
       border-inline-start: 10px solid var(--ink);
       margin-inline-start: -2px;
-      transform: scaleX(-1);   /* المثلث يشير للجهة الصحيحة في RTL */
+      transform: scaleX(-1);
     }
     .install-btn {
       display: none;
@@ -87,7 +87,6 @@
     .layout { display: grid; gap: 16px; padding: 0 16px 24px; align-content: start; }
     @media (min-width: 900px) {
       .layout { grid-template-columns: 340px 1fr; align-items: start; gap: 24px; padding: 0 24px 32px; }
-      /* في RTL أول عنصر يظهر يمينًا: القائمة يمين والمشغّل يسار */
     }
 
     /* ── المشغّل ─────────────────────────────── */
@@ -150,7 +149,7 @@
     </header>
 
     <main class="layout">
-      <!-- القنوات (تظهر يمين الشاشة في العرض الواسع) -->
+      <!-- القنوات -->
       <section class="channels" aria-labelledby="channelsTitle" style="order:2">
         <h2 id="channelsTitle">القنوات</h2>
         <ul class="channel-list" id="channelList"></ul>
@@ -179,9 +178,6 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 
   <script>
-    /* ═══════════════════════════════════════════════════════
-       StreamHandler — كما وصلتني، مع بقاء منطقها كما هو
-       ═══════════════════════════════════════════════════════ */
     class StreamHandler {
       constructor(videoElementId, containerId) {
         this.videoElement = document.getElementById(videoElementId);
@@ -253,15 +249,19 @@
     }
 
     /* ═══════════════════════════════════════════════════════
-       قائمة القنوات — مصفوفة JSON جاهزة للتعبئة لاحقًا
-       لكل قناة: id, name, streamUrl
-       اترك streamUrl فارغًا ليظهر «غير مضبوطة» ولا يمكن تشغيلها.
-       ضع فقط روابط بث تملكها أو مرخّص لك باستخدامها.
+       مصفوفة القنوات (تم تضمين رابط المباراة فيها)
        ═══════════════════════════════════════════════════════ */
     const CHANNELS = [
-      // قناة اختبار عامة (بث تجريبي رسمي من Mux) للتأكد أن المشغّل يعمل
-      { id: 'test-hls', name: 'قناة تجريبية', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
-      { id: 'ch-2', name: 'القناة 2', streamUrl: '' },
+      {
+        id: 'match-live',
+        name: 'البث المباشر (المباراة)',
+        streamUrl: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4742057&key=9f39972b67d6ce22189507d008acwc26'
+      },
+      {
+        id: 'test-hls',
+        name: 'قناة تجريبية (Mux HLS)',
+        streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+      },
       { id: 'ch-3', name: 'القناة 3', streamUrl: '' },
       { id: 'ch-4', name: 'القناة 4', streamUrl: '' }
     ];
@@ -294,7 +294,7 @@
       if (!CHANNELS.length) {
         const li = document.createElement('li');
         li.className = 'empty';
-        li.textContent = 'لا توجد قنوات بعد. أضف قنواتك إلى مصفوفة CHANNELS في index.html.';
+        li.textContent = 'لا توجد قنوات بعد.';
         listEl.appendChild(li);
         return;
       }
@@ -344,7 +344,6 @@
 
       streamHandler.loadStream(ch.streamUrl);
 
-      // متابعة حالة التشغيل (لا تغيّر منطق StreamHandler)
       const v = $('video');
       const onPlaying = () => {
         if (activeId !== ch.id) return;
@@ -360,7 +359,6 @@
           setNow(ch.name, 'متوقفة', false);
         });
       } else if (streamHandler.isIframeUrl(ch.streamUrl)) {
-        // الإطار المضمَّن: لا توجد أحداث تشغيل، نخفي الغطاء عند اكتمال التحميل
         const frame = document.getElementById('active-stream-frame');
         if (frame) frame.addEventListener('load', () => {
           if (activeId !== ch.id) return;
@@ -368,7 +366,6 @@
           setNow(ch.name, 'مباشر', true);
         });
       } else if (typeof Hls === 'undefined' || !Hls.isSupported()) {
-        // Safari/iOS يشغّل HLS مباشرة عبر عنصر video
         v.onerror = () => {
           if (activeId !== ch.id) return;
           setOverlay('تعذّر تشغيل القناة', 'تأكد من الرابط أو من اتصالك، ثم حاول مرة أخرى.', true);
@@ -379,9 +376,7 @@
 
     renderChannels();
 
-    /* ═══════════════════════════════════════════════════════
-       PWA: Service Worker + زر التثبيت + تلميح iOS
-       ═══════════════════════════════════════════════════════ */
+    /* PWA & Service Worker */
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
