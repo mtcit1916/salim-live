@@ -24,13 +24,13 @@
 
   <style>
     :root {
-      --ink:      #0e1320;   /* الخلفية */
-      --surface:  #161c2e;   /* الأسطح */
-      --surface-2:#1d2540;   /* الأسطح عند التمرير */
-      --line:     #263049;   /* الحدود */
+      --ink:      #0e1320;
+      --surface:  #161c2e;
+      --surface-2:#1d2540;
+      --line:     #263049;
       --text:     #e8ecf5;
       --muted:    #8f9ab5;
-      --floodlight:#f2b84b;  /* اللون المميّز الوحيد */
+      --floodlight:#f2b84b;
       --danger:   #ff8a7a;
       --radius:   14px;
       --safe-top: env(safe-area-inset-top, 0px);
@@ -229,7 +229,7 @@
         iframe.style.border = 'none';
         iframe.style.position = 'absolute';
         iframe.style.inset = '0';
-        iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+        iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
         iframe.setAttribute('allowfullscreen', 'true');
         this.containerElement.appendChild(iframe);
       }
@@ -249,9 +249,14 @@
     }
 
     /* ═══════════════════════════════════════════════════════
-       مصفوفة القنوات الرسمية (beIN SPORTS)
+       مصفوفة القنوات
        ═══════════════════════════════════════════════════════ */
     const CHANNELS = [
+      {
+        id: 'test-channel',
+        name: 'تجربة القناة',
+        streamUrl: 'https://live-k24.rhcloud.com/BeinSport/BeinSport.m3u8?ch=1'
+      },
       {
         id: 'bein-1',
         name: 'beIN SPORTS 1',
