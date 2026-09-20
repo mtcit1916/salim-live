@@ -1,420 +1,201 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>إيزي لايف</title>
-  <meta name="description" content="مشغّل بث مباشر بقائمة قنوات قابلة للتخصيص">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تطبيق المشغل المباشر | PWA Player</title>
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0e1320">
-  <meta name="color-scheme" content="dark">
-
-  <!-- iOS: الإضافة إلى الشاشة الرئيسية -->
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <!-- PWA Manifest & Theme -->
+  <meta name="theme-color" content="#1a1a24">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="إيزي لايف">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- HLS.js Library for M3U8 Streams -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
   <style>
-    :root {
-      --ink:      #0e1320;
-      --surface:  #161c2e;
-      --surface-2:#1d2540;
-      --line:     #263049;
-      --text:     #e8ecf5;
-      --muted:    #8f9ab5;
-      --floodlight:#f2b84b;
-      --danger:   #ff8a7a;
-      --radius:   14px;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; }
     body {
-      background: var(--ink);
-      color: var(--text);
-      font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
-      line-height: 1.6;
-      padding-top: var(--safe-top);
-      padding-bottom: var(--safe-bottom);
-      -webkit-font-smoothing: antialiased;
+      background-color: #0f0f15;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     }
-    button { font: inherit; color: inherit; }
-    :focus-visible { outline: 2px solid var(--floodlight); outline-offset: 2px; }
-
-    .app {
-      display: grid;
-      grid-template-rows: auto 1fr;
-      min-height: 100%;
-      max-width: 1280px;
-      margin-inline: auto;
+    .video-aspect {
+      aspect-ratio: 16 / 9;
     }
-
-    /* ── الشريط العلوي ───────────────────────── */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 14px 16px;
-    }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; }
-    .brand-mark {
-      width: 30px; height: 30px; border-radius: 50%;
-      background: var(--floodlight); display: grid; place-items: center;
-    }
-    .brand-mark::after {
-      content: ""; width: 0; height: 0;
-      border-block: 6px solid transparent;
-      border-inline-start: 10px solid var(--ink);
-      margin-inline-start: -2px;
-      transform: scaleX(-1);
-    }
-    .install-btn {
-      display: none;
-      background: transparent; border: 1px solid var(--line); border-radius: 999px;
-      padding: 6px 14px; cursor: pointer; font-size: .9rem;
-    }
-    .install-btn:hover { border-color: var(--floodlight); }
-    .install-btn.show { display: inline-block; }
-
-    /* ── التخطيط الرئيسي ─────────────────────── */
-    .layout { display: grid; gap: 16px; padding: 0 16px 24px; align-content: start; }
-    @media (min-width: 900px) {
-      .layout { grid-template-columns: 340px 1fr; align-items: start; gap: 24px; padding: 0 24px 32px; }
-    }
-
-    /* ── المشغّل ─────────────────────────────── */
-    .stage { min-width: 0; }
-    @media (max-width: 899px) {
-      .stage { position: sticky; top: var(--safe-top); z-index: 5; background: var(--ink); padding-bottom: 4px; }
-    }
-    .player {
-      position: relative; aspect-ratio: 16 / 9; width: 100%;
-      background: #000; border-radius: var(--radius); overflow: hidden;
-      border: 1px solid var(--line);
-    }
-    #video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; display: none; }
-    .overlay {
-      position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
-      gap: 6px; padding: 16px; color: var(--muted); background: #000;
-    }
-    .overlay strong { color: var(--text); font-weight: 600; font-size: 1.05rem; }
-    .overlay.error strong { color: var(--danger); }
-    .overlay[hidden] { display: none; }
-
-    .now { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 28px; }
-    .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
-    .now.playing .live-dot { background: var(--floodlight); box-shadow: 0 0 0 4px rgba(242,184,75,.18); }
-    .now-name { font-weight: 600; }
-    .now-status { color: var(--muted); font-size: .9rem; margin-inline-start: auto; }
-
-    /* ── قائمة القنوات ───────────────────────── */
-    .channels h2 { font-size: 1rem; font-weight: 600; margin: 4px 0 10px; color: var(--muted); }
-    .channel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-    .channel {
-      width: 100%; display: flex; align-items: center; gap: 12px; text-align: start;
-      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-      padding: 10px 12px; cursor: pointer; min-height: 56px;
-      transition: background .15s, border-color .15s;
-    }
-    .channel:hover { background: var(--surface-2); }
-    .channel[aria-current="true"] { border-color: var(--floodlight); background: var(--surface-2); }
-    .channel[disabled] { opacity: .55; cursor: not-allowed; }
-    .avatar {
-      width: 38px; height: 38px; border-radius: 10px; flex: none;
-      display: grid; place-items: center; font-weight: 700;
-      background: var(--ink); border: 1px solid var(--line); color: var(--floodlight);
-    }
-    .channel-name { font-weight: 500; }
-    .channel-note { margin-inline-start: auto; font-size: .8rem; color: var(--muted); }
-    .empty { color: var(--muted); padding: 16px; border: 1px dashed var(--line); border-radius: 12px; }
-
-    .hint { color: var(--muted); font-size: .85rem; margin-top: 16px; }
-    .hint[hidden] { display: none; }
-
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
-<body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>إيزي لايف</span></div>
-      <button class="install-btn" id="installBtn" type="button">تثبيت التطبيق</button>
-    </header>
+<body class="flex flex-col min-h-screen">
 
-    <main class="layout">
-      <!-- القنوات -->
-      <section class="channels" aria-labelledby="channelsTitle" style="order:2">
-        <h2 id="channelsTitle">القنوات</h2>
-        <ul class="channel-list" id="channelList"></ul>
-        <p class="hint" id="iosHint" hidden>لتثبيت التطبيق على الآيفون: افتح الصفحة في Safari، اضغط زر المشاركة، ثم اختر «إضافة إلى الشاشة الرئيسية».</p>
-      </section>
+  <!-- Header / Navbar -->
+  <header class="bg-gray-900 border-b border-gray-800 p-4 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold text-red-500 flex items-center gap-2">
+        <span>📺</span> مشغل القنوات المباشرة
+      </h1>
+      <span class="text-xs bg-red-600/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30">PWA Active</span>
+    </div>
+  </header>
 
-      <!-- المشغّل -->
-      <section class="stage" aria-label="المشغّل" style="order:1">
-        <div class="player" id="player">
-          <video id="video" controls playsinline webkit-playsinline></video>
-          <div class="overlay" id="overlay" role="status">
-            <strong id="overlayTitle">اختر قناة لبدء المشاهدة</strong>
-            <span id="overlayText">القنوات موجودة في القائمة.</span>
-          </div>
+  <!-- Main Content -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+    
+    <!-- Player Section -->
+    <div class="flex-1 flex flex-col gap-4">
+      <div id="player-container" class="relative w-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 video-aspect flex items-center justify-center">
+        <!-- HLS HTML5 Video Player -->
+        <video id="video-player" class="w-full h-full object-contain hidden" controls autoplay playsinline></video>
+        
+        <!-- Iframe Player -->
+        <iframe id="iframe-player" class="w-full h-full border-0 hidden" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+        
+        <!-- Placeholder / Loader -->
+        <div id="player-placeholder" class="text-center p-6">
+          <p class="text-gray-400 text-lg">اختر قناة من القائمة لبدء التشغيل</p>
         </div>
-        <div class="now" id="now">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span class="now-name" id="nowName">لا توجد قناة قيد التشغيل</span>
-          <span class="now-status" id="nowStatus"></span>
-        </div>
-      </section>
-    </main>
-  </div>
+      </div>
 
-  <!-- مكتبة hls.js من الـ CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+      <!-- Channel Info -->
+      <div class="bg-gray-900 p-4 rounded-xl border border-gray-800">
+        <h2 id="current-channel-title" class="text-lg font-bold text-gray-200">لم يتم اختيار قناة</h2>
+        <p id="current-channel-type" class="text-xs text-gray-400 mt-1">الرجاء تحديد قناة لمشاهدة البث</p>
+      </div>
+    </div>
+
+    <!-- Sidebar / Channel List -->
+    <aside class="w-full md:w-80 bg-gray-900 p-4 rounded-xl border border-gray-800 h-fit">
+      <h3 class="text-md font-bold mb-4 text-gray-300 border-b border-gray-800 pb-2 flex justify-between items-center">
+        <span>قائمة القنوات</span>
+        <span id="channel-count" class="text-xs text-gray-500">0 قنوات</span>
+      </h3>
+      <div id="channel-list" class="flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1">
+        <!-- القنوات تضاف هنا عبر JavaScript -->
+      </div>
+    </aside>
+
+  </main>
 
   <script>
-    class StreamHandler {
-      constructor(videoElementId, containerId) {
-        this.videoElement = document.getElementById(videoElementId);
-        this.containerElement = document.getElementById(containerId);
-        this.hlsInstance = null;
-      }
+    // =========================================================
+    // 1. رابط الـ Cloudflare Worker الخاص بك (استبدل الرابط برابطك الخاص)
+    // =========================================================
+    const PROXY_URL = 'https://iptv-proxy.YOUR-USERNAME.workers.dev/?url=';
 
-      loadStream(url) {
-        if (!url) return;
-        this.reset();
-        if (this.isIframeUrl(url)) {
-          this.renderIframe(url);
-          return;
-        }
-        this.renderHls(url);
-      }
-
-      isIframeUrl(url) {
-        return url.includes('player') || url.includes('.php') || url.includes('embed') || !url.includes('.m3u8');
-      }
-
-      renderHls(url) {
-        this.videoElement.style.display = 'block';
-        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-          this.hlsInstance = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-          });
-          this.hlsInstance.loadSource(url);
-          this.hlsInstance.attachMedia(this.videoElement);
-          this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-            this.videoElement.play().catch(() => {});
-          });
-        } else if (this.videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-          this.videoElement.src = url;
-          this.videoElement.addEventListener('loadedmetadata', () => {
-            this.videoElement.play().catch(() => {});
-          });
-        }
-      }
-
-      renderIframe(url) {
-        this.videoElement.style.display = 'none';
-        const iframe = document.createElement('iframe');
-        iframe.id = 'active-stream-frame';
-        iframe.src = url;
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.border = 'none';
-        iframe.style.position = 'absolute';
-        iframe.style.inset = '0';
-        iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-        iframe.setAttribute('allowfullscreen', 'true');
-        this.containerElement.appendChild(iframe);
-      }
-
-      reset() {
-        if (this.hlsInstance) {
-          this.hlsInstance.destroy();
-          this.hlsInstance = null;
-        }
-        const existingIframe = document.getElementById('active-stream-frame');
-        if (existingIframe) {
-          existingIframe.remove();
-        }
-        this.videoElement.removeAttribute('src');
-        this.videoElement.load();
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       مصفوفة القنوات
-       ═══════════════════════════════════════════════════════ */
+    // =========================================================
+    // 2. مصفوفة القنوات (تتضمن روابط IPTV المباشرة و Iframe)
+    // =========================================================
     const CHANNELS = [
       {
-        id: 'test-channel',
-        name: 'تجربة القناة',
-        streamUrl: 'https://live-k24.rhcloud.com/BeinSport/BeinSport.m3u8?ch=1'
+        id: 'bein-1-iptv',
+        name: 'beIN SPORTS 1 (IPTV)',
+        type: 'hls',
+        // رابط HTTP يمر عبر الـ Proxy لتجاوز الحظر
+        url: PROXY_URL + encodeURIComponent('http://80.211.189.193/live/get.php?stream=27&username=76097116161695&password=76097116161695')
       },
       {
-        id: 'bein-1',
-        name: 'beIN SPORTS 1',
-        streamUrl: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750841&key=9f39972b67d6ce22189507d008acwc26'
+        id: 'bein-1-iframe',
+        name: 'beIN SPORTS 1 (YasirTV)',
+        type: 'iframe',
+        url: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750841&key=9f39972b67d6ce22189507d008acwc26'
       },
       {
-        id: 'bein-2',
-        name: 'beIN SPORTS 2',
-        streamUrl: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750847&key=9f39972b67d6ce22189507d008acwc26'
+        id: 'bein-2-iframe',
+        name: 'beIN SPORTS 2 (YasirTV)',
+        type: 'iframe',
+        url: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750842&key=9f39972b67d6ce22189507d008acwc26'
       },
       {
-        id: 'bein-3',
-        name: 'beIN SPORTS 3',
-        streamUrl: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750849&key=9f39972b67d6ce22189507d008acwc26'
+        id: 'bein-3-iframe',
+        name: 'beIN SPORTS 3 (YasirTV)',
+        type: 'iframe',
+        url: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750843&key=9f39972b67d6ce22189507d008acwc26'
       },
       {
-        id: 'bein-4',
-        name: 'beIN SPORTS 4',
-        streamUrl: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4732697&key=9f39972b67d6ce22189507d008acwc26'
+        id: 'bein-4-iframe',
+        name: 'beIN SPORTS 4 (YasirTV)',
+        type: 'iframe',
+        url: 'https://912acsss8af382.yasirtv.com/playerv5.php?match=4750844&key=9f39972b67d6ce22189507d008acwc26'
       }
     ];
 
-    /* ═══════════════════════════════════════════════════════
-       ربط الواجهة
-       ═══════════════════════════════════════════════════════ */
-    const streamHandler = new StreamHandler('video', 'player');
-    const $ = (id) => document.getElementById(id);
-    const listEl = $('channelList');
-    const overlay = $('overlay');
-    const nowEl = $('now');
-    let activeId = null;
+    // عناصر الواجهة
+    const videoPlayer = document.getElementById('video-player');
+    const iframePlayer = document.getElementById('iframe-player');
+    const placeholder = document.getElementById('player-placeholder');
+    const channelListContainer = document.getElementById('channel-list');
+    const currentChannelTitle = document.getElementById('current-channel-title');
+    const currentChannelType = document.getElementById('current-channel-type');
+    const channelCount = document.getElementById('channel-count');
 
-    function setOverlay(title, text, isError = false) {
-      $('overlayTitle').textContent = title;
-      $('overlayText').textContent = text || '';
-      overlay.classList.toggle('error', isError);
-      overlay.hidden = false;
-    }
+    let hlsInstance = null;
 
-    function setNow(name, status, playing) {
-      $('nowName').textContent = name;
-      $('nowStatus').textContent = status || '';
-      nowEl.classList.toggle('playing', !!playing);
-    }
-
+    // بناء قائمة القنوات
     function renderChannels() {
-      listEl.textContent = '';
-      if (!CHANNELS.length) {
-        const li = document.createElement('li');
-        li.className = 'empty';
-        li.textContent = 'لا توجد قنوات بعد.';
-        listEl.appendChild(li);
-        return;
-      }
-      CHANNELS.forEach((ch) => {
-        const li = document.createElement('li');
+      channelListContainer.innerHTML = '';
+      channelCount.textContent = `${CHANNELS.length} قنوات`;
+
+      CHANNELS.forEach((channel) => {
         const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'channel';
-        btn.dataset.id = ch.id;
+        btn.className = 'w-full text-right p-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition flex items-center justify-between border border-gray-700/50';
+        btn.innerHTML = `
+          <span class="font-medium text-sm text-gray-200">${channel.name}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-gray-900 text-gray-400 border border-gray-700">${channel.type.toUpperCase()}</span>
+        `;
+        btn.onclick = () => playChannel(channel);
+        channelListContainer.appendChild(btn);
+      });
+    }
 
-        const avatar = document.createElement('span');
-        avatar.className = 'avatar';
-        avatar.textContent = (ch.name || '?').trim().charAt(0);
+    // تشغيل القناة المختارة
+    function playChannel(channel) {
+      currentChannelTitle.textContent = channel.name;
+      currentChannelType.textContent = `النوع: ${channel.type.toUpperCase()} | البث المباشر`;
 
-        const name = document.createElement('span');
-        name.className = 'channel-name';
-        name.textContent = ch.name;
+      placeholder.classList.add('hidden');
 
-        btn.append(avatar, name);
+      if (channel.type === 'hls') {
+        // إيقاف الـ Iframe
+        iframePlayer.classList.add('hidden');
+        iframePlayer.src = '';
 
-        if (!ch.streamUrl) {
-          btn.disabled = true;
-          const note = document.createElement('span');
-          note.className = 'channel-note';
-          note.textContent = 'غير مضبوطة';
-          btn.appendChild(note);
-        } else {
-          btn.addEventListener('click', () => playChannel(ch));
+        // إظهار مشغل الفيديو
+        videoPlayer.classList.remove('hidden');
+
+        if (hlsInstance) {
+          hlsInstance.destroy();
         }
-        li.appendChild(btn);
-        listEl.appendChild(li);
-      });
-    }
 
-    function markActive(id) {
-      listEl.querySelectorAll('.channel').forEach((b) => {
-        if (b.dataset.id === id) b.setAttribute('aria-current', 'true');
-        else b.removeAttribute('aria-current');
-      });
-    }
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(channel.url);
+          hlsInstance.attachMedia(videoPlayer);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoPlayer.play();
+          });
+        } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+          // لدعم متصفح Safari على iOS
+          videoPlayer.src = channel.url;
+          videoPlayer.play();
+        }
+      } else if (channel.type === 'iframe') {
+        // إيقاف مشغل HLS
+        if (hlsInstance) {
+          hlsInstance.destroy();
+        }
+        videoPlayer.pause();
+        videoPlayer.classList.add('hidden');
 
-    function playChannel(ch) {
-      activeId = ch.id;
-      markActive(ch.id);
-      setNow(ch.name, 'جارٍ التحميل…', false);
-      setOverlay('جارٍ تحميل القناة', ch.name);
-
-      streamHandler.loadStream(ch.streamUrl);
-
-      const v = $('video');
-      const onPlaying = () => {
-        if (activeId !== ch.id) return;
-        overlay.hidden = true;
-        setNow(ch.name, 'مباشر', true);
-      };
-      v.onplaying = onPlaying;
-
-      if (streamHandler.hlsInstance && typeof Hls !== 'undefined') {
-        streamHandler.hlsInstance.on(Hls.Events.ERROR, (_e, data) => {
-          if (activeId !== ch.id || !data.fatal) return;
-          setOverlay('تعذّر تشغيل القناة', 'تأكد من الرابط أو من اتصالك، ثم حاول مرة أخرى.', true);
-          setNow(ch.name, 'متوقفة', false);
-        });
-      } else if (streamHandler.isIframeUrl(ch.streamUrl)) {
-        const frame = document.getElementById('active-stream-frame');
-        if (frame) frame.addEventListener('load', () => {
-          if (activeId !== ch.id) return;
-          overlay.hidden = true;
-          setNow(ch.name, 'مباشر', true);
-        });
-      } else if (typeof Hls === 'undefined' || !Hls.isSupported()) {
-        v.onerror = () => {
-          if (activeId !== ch.id) return;
-          setOverlay('تعذّر تشغيل القناة', 'تأكد من الرابط أو من اتصالك، ثم حاول مرة أخرى.', true);
-          setNow(ch.name, 'متوقفة', false);
-        };
+        // إظهار الـ Iframe
+        iframePlayer.classList.remove('hidden');
+        iframePlayer.src = channel.url;
       }
     }
 
-    renderChannels();
-
-    /* PWA & Service Worker */
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-      });
-    }
-
-    let deferredPrompt = null;
-    const installBtn = $('installBtn');
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.classList.add('show');
+    // التهيئة عند تحميل الصفحة
+    document.addEventListener('DOMContentLoaded', () => {
+      renderChannels();
     });
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      installBtn.classList.remove('show');
-    });
-    window.addEventListener('appinstalled', () => installBtn.classList.remove('show'));
-
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isStandalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
-    if (isIOS && !isStandalone) $('iosHint').hidden = false;
   </script>
 </body>
 </html>
