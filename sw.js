@@ -1,19 +1,20 @@
-/* Easy Live – Service Worker بسيط
- * - يخزّن هيكل التطبيق (الصفحة، الأيقونات، المانيفست) ليفتح بسرعة وبدون إنترنت.
+/* Easy Live – Service Worker
+ * - يخزّن هيكل التطبيق ليفتح بسرعة وبدون إنترنت ومن الشاشة الرئيسية.
  * - يخزّن مكتبة hls.js من الـ CDN.
  * - لا يلمس أي طلب بث (m3u8 / مقاطع الفيديو / Range) إطلاقًا.
- * غيّر رقم الإصدار عند تعديل ملفات التطبيق ليتحدّث الكاش.
  */
-const VERSION = 'v1';
+const VERSION = 'v2'; // رفع الإصدار لتحديث الكاش القديم لدى المستخدمين
 const CACHE = `easylive-${VERSION}`;
 const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
+
+// استخدام مسارات مطلقة تفادياً لمشكلة الصفحة البيضاء
 const SHELL = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ];
 const MEDIA_RE = /\.(m3u8|ts|m4s|mp4|aac|mp3|key)(\?|$)/i;
 
@@ -21,7 +22,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then(async (cache) => {
       await cache.addAll(SHELL);
-      try { await cache.add(HLS_CDN); } catch (e) { /* يُحمَّل لاحقًا عند أول استخدام */ }
+      try { await cache.add(HLS_CDN); } catch (e) { /* يُحمَّل لاحقًا */ }
     }).then(() => self.skipWaiting())
   );
 });
@@ -29,7 +30,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('easylive-') && k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys.filter((k) => k.startsWith('easylive-') && k !== CACHE).map((k) => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -38,11 +41,11 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   if (req.headers.has('range')) return;          // بث/ملفات وسائط جزئية
-  if (MEDIA_RE.test(req.url)) return;            // لا نتدخل في البث أبدًا
+  if (MEDIA_RE.test(req.url)) return;            // لا نتدخل في البث إطلاقاً
 
   const url = new URL(req.url);
 
-  // مكتبة hls.js: من الكاش أولًا
+  // مكتبة hls.js: من الكاش أولاً
   if (req.url === HLS_CDN) {
     event.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {
@@ -56,19 +59,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // أي طلب خارجي آخر (بث، خطوط، إلخ): نتركه للمتصفح
+  // أي طلب خارجي آخر: نتركه للمتصفح
   if (url.origin !== self.location.origin) return;
 
-  // التنقّل بين الصفحات: الشبكة أولًا ثم الكاش عند انقطاع الإنترنت
+  // التنقّل بين الصفحات والفتح من الشاشة الرئيسية: الشبكة أولاً ثم الكاش
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          caches.open(CACHE).then((c) => {
+            c.put('/', copy.clone());
+            c.put('/index.html', copy);
+          });
           return res;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => {
+          return caches.match('/')
+            .then((hit) => hit || caches.match('/index.html'));
+        })
     );
     return;
   }
